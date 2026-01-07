@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Juego</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      margin: 0;
+      background: white;
+      overflow: hidden;
+      font-family: monospace;
+      touch-action: none; /* clave para gestos */
+    }
+
+    #avatar {
+      width: 96px;
+      height: 128px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      background: white;
+      user-select: none;
+    }
+
+    #avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: grayscale(100%) contrast(120%);
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+
+    /* AVATAR MÁS GRANDE EN MÓVIL */
+    @media (max-width: 768px) {
+      #avatar {
+        width: 40vw;
+        height: calc(40vw * 4 / 3);
+        max-width: 200px;
+        max-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div id="avatar">?</div>
+
+<script>
+  const avatar = document.getElementById("avatar");
+  const imageData = localStorage.getItem("profileImage");
+
+  if (imageData) {
+    const img = document.createElement("img");
+    img.src = imageData;
+    avatar.innerHTML = "";
+    avatar.appendChild(img);
+  }
+
+  let x = window.innerWidth / 2 - avatar.offsetWidth / 2;
+  let y = window.innerHeight / 2 - avatar.offsetHeight / 2;
+  const speed = 3;
+
+  const keys = {
+    ArrowUp: false,
+    ArrowDown: false,
+    ArrowLeft: false,
+    ArrowRight: false
+  };
+
+  /* TECLADO (PC) */
+  document.addEventListener("keydown", e => {
+    if (e.key in keys) keys[e.key] = true;
+  });
+
+  document.addEventListener("keyup", e => {
+    if (e.key in keys) keys[e.key] = false;
+  });
+
+  /* GESTOS TÁCTILES (MÓVIL) */
+  let lastTouchX = null;
+  let lastTouchY = null;
+
+  document.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    lastTouchX = t.clientX;
+    lastTouchY = t.clientY;
+  });
+
+  document.addEventListener("touchmove", e => {
+    if (lastTouchX === null || lastTouchY === null) return;
+
+    const t = e.touches[0];
+    const dx = t.clientX - lastTouchX;
+    const dy = t.clientY - lastTouchY;
+
+    x += dx * 0.6;
+    y += dy * 0.6;
+
+    lastTouchX = t.clientX;
+    lastTouchY = t.clientY;
+  });
+
+  document.addEventListener("touchend", () => {
+    lastTouchX = null;
+    lastTouchY = null;
+  });
+
+  function update() {
+    if (keys.ArrowUp) y -= speed;
+    if (keys.ArrowDown) y += speed;
+    if (keys.ArrowLeft) x -= speed;
+    if (keys.ArrowRight) x += speed;
+
+    const w = avatar.offsetWidth;
+    const h = avatar.offsetHeight;
+
+    x = Math.max(0, Math.min(x, window.innerWidth - w));
+    y = Math.max(0, Math.min(y, window.innerHeight - h));
+
+    avatar.style.left = x + "px";
+    avatar.style.top = y + "px";
+
+    requestAnimationFrame(update);
+  }
+
+  update();
+</script>
+
+</body>
+</html>
