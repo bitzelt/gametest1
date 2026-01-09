@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Rei - Nivel 1 Pixel Edition</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+  <style> 
+    body { margin: 0; overflow: hidden; background: #fff; touch-action: none; }
+    canvas { image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+<script>
+
+let xPos, yPos, size = 30, baseVel = 3.8, vel = baseVel, rotAngle = 0;
+let gotas = [], cantidadGotas = 35;
+let triangulos = [], numTriangulosBloque = 10, totalComidas = 40, comidasHechas = 0;
+let vida = 100, gatitoWin, gatitoLose, gatitoSize;
+let ganado = false, perdido = false, dificultad = 1, particulas = [], confeti = [];
+
+// Nuevo sistema de Joystick
+let joystick = { x: 0, y: 0, r: 50, active: false, offsetX: 0, offsetY: 0, touchID: null };
+let escalaMovil = 1, esMovil = false;
+
+function preload() {
+  gatitoWin = loadImage('rei.jpg');
+  gatitoLose = loadImage('rei2.jpg');
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noSmooth();
+  
+  esMovil = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(esMovil) escalaMovil = 1.8; // Aumentamos escala para que los botones se vean bien
+  
+  size *= escalaMovil;
+  gatitoSize = 280 * escalaMovil;
+  xPos = width/2; yPos = height/2;
+  
+  iniciarBloque();
+  for(let i=0; i<cantidadGotas; i++){
+    gotas.push({x: random(width), y: random(-500,0), r: random(10,20)*escalaMovil, speed: random(1.2,2.8), wave: random(0.5,2)});
+  }
+  
+  // Posicionar joystick abajo a la izquierda para comodidad del pulgar
+  joystick.r = 45 * escalaMovil; 
+  joystick.x = 80 * escalaMovil; 
+  joystick.y = height - (80 * escalaMovil);
+}
+
+function iniciarBloque(){
+  triangulos = [];
+  if (comidasHechas < totalComidas) {
+    for(let i=0; i<numTriangulosBloque; i++){
+      triangulos.push({centerX: random(50, width-50), centerY: random(50, height-250), angle: random(TWO_PI), radius: random(30,60)*escalaMovil, size: random(22,34)*escalaMovil, speed: random(0.015,0.035)*dificultad});
+    }
+  }
+}
+
+function dispararConfeti() {
+  for (let i = 0; i < 120; i++) {
+    confeti.push({
+      x: width / 2, y: height / 2,
+      vx: random(-8, 8), vy: random(-12, 2),
+      c: color(random(255), random(255), random(255)),
+      s: random(5, 12), g: 0.2
+    });
+  }
+}
+
+function reiniciarJuego(){
+  comidasHechas = 0; vida = 100; dificultad = 1; ganado = false; perdido = false;
+  xPos = width/2; yPos = height/2; confeti = [];
+  iniciarBloque();
+}
+
+function draw(){
+  background(255);
+  
+  if(!ganado && !perdido){
+    let enLiquido = false;
+    noStroke(); fill(0,255,0, 150);
+    for(let g of gotas){
+      g.y += g.speed * dificultad;
+      g.x += sin(frameCount*0.02 + g.y)*g.wave;
+      ellipse(g.x, g.y, g.r*1.2, g.r*1.8);
+      if(g.y > height+20){ g.y=random(-200,0); g.x=random(width); }
+      if(dist(xPos, yPos, g.x, g.y) < size/2 + g.r/2) enLiquido = true;
+    }
+    
+    vel = enLiquido ? baseVel*0.4 : baseVel;
+    if(enLiquido){ vida -= 0.2; if(vida <= 0) perdido=true; }
+    
+    let dx=0, dy=0;
+    // Teclado
+    if(keyIsDown(LEFT_ARROW) || keyIsDown(65)) dx -= 1;
+    if(keyIsDown(RIGHT_ARROW) || keyIsDown(68)) dx += 1;
+    if(keyIsDown(UP_ARROW) || keyIsDown(87)) dy -= 1;
+    if(keyIsDown(DOWN_ARROW) || keyIsDown(83)) dy += 1;
+    
+    // Joystick Móvil
+    if(esMovil && joystick.active){
+      dx = joystick.offsetX / joystick.r;
+      dy = joystick.offsetY / joystick.r;
+    }
+
+    xPos += dx * vel; yPos += dy * vel;
+    xPos = constrain(xPos, size/2, width-size/2);
+    yPos = constrain(yPos, size/2, height-size/2);
+
+    // Dibujar Comida
+    for(let i=triangulos.length-1; i>=0; i--){
+      let t = triangulos[i]; t.angle += t.speed;
+      let tx = t.centerX + cos(t.angle)*t.radius;
+      let ty = t.centerY + sin(t.angle)*t.radius;
+      fill(255,0,0); triangle(tx, ty - t.size/2, tx - t.size/2, ty + t.size/2, tx + t.size/2, ty + t.size/2);
+      if(dist(xPos, yPos, tx, ty) < size/2 + t.size/2){
+        for(let p=0; p<10; p++) particulas.push({x:tx, y:ty, vx:random(-3,3), vy:random(-3,3), a:255});
+        triangulos.splice(i,1); comidasHechas++;
+      }
+    }
+
+    // Dibujar Partículas
+    for(let i=particulas.length-1; i>=0; i--){
+      let p=particulas[i]; p.x+=p.vx; p.y+=p.vy; p.a-=10;
+      fill(255,0,0,p.a); ellipse(p.x, p.y, 5);
+      if(p.a<=0) particulas.splice(i,1);
+    }
+
+    if(triangulos.length === 0 && comidasHechas < totalComidas){ dificultad += 0.15; iniciarBloque(); }
+    if(comidasHechas >= totalComidas) { ganado = true; dispararConfeti(); }
+
+    // Personaje
+    push(); translate(xPos, yPos); rotate(rotAngle += 0.05);
+    rectMode(CENTER); fill(0); rect(0, 0, size, size); pop();
+
+    // UI Barras
+    noStroke();
+    fill(220); rect(20, 20, 200, 15);
+    fill(255, 0, 0); rect(20, 20, (vida/100)*200, 15);
+    fill(220); rect(20, 45, 200, 15);
+    fill(0, 200, 0); rect(20, 45, (comidasHechas/totalComidas)*200, 15);
+
+    if(esMovil) drawJoystick();
+
+  } else {
+    // Pantalla Final
+    background(255);
+    imageMode(CENTER);
+    image(ganado ? gatitoWin : gatitoLose, width/2, height/2, gatitoSize, gatitoSize + sin(frameCount*0.1)*10);
+    for(let i=confeti.length-1; i>=0; i--){
+      let c=confeti[i]; c.vy+=c.g; c.x+=c.vx; c.y+=c.vy;
+      fill(c.c); rect(c.x, c.y, c.s, c.s);
+      if(c.y > height) confeti.splice(i,1);
+    }
+    textAlign(CENTER); fill(0); textSize(24 * escalaMovil);
+    text(ganado ? "¡GANASTE!" : "GAME OVER", width/2, height/2 + gatitoSize/1.7);
+    textSize(14 * escalaMovil);
+    text("Toca cualquier parte para reiniciar", width/2, height/2 + gatitoSize/1.7 + 30);
+  }
+}
+
+function drawJoystick(){
+  // Fondo del joystick (más oscuro para que se vea bien)
+  fill(0, 0, 0, 50);
+  ellipse(joystick.x, joystick.y, joystick.r * 2.2);
+  // El stick que mueves
+  fill(100, 100, 100, 200);
+  ellipse(joystick.x + joystick.offsetX, joystick.y + joystick.offsetY, joystick.r);
+  
+  // Instrucción visual
+  fill(0, 150);
+  textSize(12 * escalaMovil);
+  textAlign(CENTER);
+  text("MUEVE AQUÍ", joystick.x, joystick.y + joystick.r + 20);
+}
+
+// GESTIÓN TÁCTIL MEJORADA
+function touchStarted() {
+  if (ganado || perdido) {
+    reiniciarJuego();
+    return false;
+  }
+  
+  for (let t of touches) {
+    // Si el toque es en el área del joystick
+    if (dist(t.x, t.y, joystick.x, joystick.y) < joystick.r * 2) {
+      joystick.active = true;
+      joystick.touchID = t.id;
+    }
+  }
+  return false;
+}
+
+function touchMoved() {
+  if (joystick.active) {
+    for (let t of touches) {
+      if (t.id === joystick.touchID) {
+        let d = dist(t.x, t.y, joystick.x, joystick.y);
+        let angle = atan2(t.y - joystick.y, t.x - joystick.x);
+        let distLimit = min(d, joystick.r);
+        joystick.offsetX = cos(angle) * distLimit;
+        joystick.offsetY = sin(angle) * distLimit;
+      }
+    }
+  }
+  return false;
+}
+
+function touchEnded() {
+  // Si el toque que terminó es el del joystick
+  let joystickSigueActivo = false;
+  for (let t of touches) {
+    if (t.id === joystick.touchID) joystickSigueActivo = true;
+  }
+  
+  if (!joystickSigueActivo) {
+    joystick.active = false;
+    joystick.offsetX = 0;
+    joystick.offsetY = 0;
+    joystick.touchID = null;
+  }
+  return false;
+}
+
+function mousePressed() {
+  if (ganado || perdido) reiniciarJuego();
+}
+
+function windowResized(){
+  resizeCanvas(windowWidth, windowHeight);
+  joystick.x = 80 * escalaMovil; 
+  joystick.y = height - (80 * escalaMovil);
+}
+
+</script>
+</body>
+</html>
