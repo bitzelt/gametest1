@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Rei - Nivel 1</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+</head>
+<body>
+<script>
+
+let xPos, yPos;
+let size = 30;
+let baseVel = 3.8, vel = baseVel, rotAngle = 0;
+
+let gotas = [], cantidadGotas = 35;
+
+let triangulos = [];
+let numTriangulosBloque = 10;
+let totalComidas = 50;
+let comidasHechas = 0;
+
+let vida = 100;
+
+let gatitoWin, gatitoLose, gatitoSize;
+
+let ganado = false;
+let perdido = false;
+let dificultad = 1;
+
+let particulas = [];
+
+// joystick visual (solo móvil)
+let joystick = {x:0, y:0, r:70, active:false, touchX:0, touchY:0, offsetX:0, offsetY:0};
+
+let escalaMovil = 1;
+let esMovil = false;
+
+function preload() {
+  gatitoWin = loadImage('rei.jpg');
+  gatitoLose = loadImage('rei2.jpg');
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+
+  esMovil = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(esMovil) escalaMovil = 1.5;
+
+  size *= escalaMovil;
+  gatitoSize = 150 * escalaMovil;
+
+  xPos = width/2;
+  yPos = height/2;
+
+  iniciarBloque();
+
+  for(let i=0;i<cantidadGotas;i++){
+    gotas.push({
+      x: random(width),
+      y: random(-500,0),
+      r: random(10,20)*escalaMovil,
+      speed: random(1.2,2.8),
+      wave: random(0.5,2)
+    });
+  }
+
+  joystick.x = width/2;
+  joystick.y = height - 120*escalaMovil;
+  joystick.touchX = joystick.x;
+  joystick.touchY = joystick.y;
+}
+
+function iniciarBloque(){
+  triangulos = [];
+  for(let i=0;i<numTriangulosBloque;i++){
+    triangulos.push({
+      centerX: random(100,width-100),
+      centerY: random(100,height-100),
+      angle: random(TWO_PI),
+      radius: random(30,60)*escalaMovil,
+      size: random(22,34)*escalaMovil,
+      speed: random(0.015,0.035)*dificultad
+    });
+  }
+}
+
+function reiniciarJuego(){
+  comidasHechas = 0;
+  vida = 100;
+  dificultad = 1;
+  ganado = false;
+  perdido = false;
+  iniciarBloque();
+}
+
+function draw(){
+  background(255);
+
+  if(!ganado && !perdido){
+
+    let enLiquido = false;
+
+    // gotas verdes
+    noStroke(); fill(0,255,0);
+    for(let g of gotas){
+      g.y += g.speed * dificultad;
+      g.x += sin(frameCount*0.02 + g.y)*g.wave;
+      ellipse(g.x,g.y,g.r*1.2,g.r*1.8);
+      if(g.y>height+20){ g.y=random(-200,0); g.x=random(width); }
+      if(dist(xPos,yPos,g.x,g.y) < size/2 + g.r/2) enLiquido=true;
+    }
+
+    vel = enLiquido ? baseVel*0.5 : baseVel;
+    if(enLiquido){
+      vida -= 0.6;
+      if(vida<=0){ vida=0; perdido=true; }
+    }
+
+    let dx=0, dy=0;
+
+    // teclado PC
+    if(!esMovil){
+      if(keyIsDown(LEFT_ARROW)||keyIsDown(65)) dx -= 1;
+      if(keyIsDown(RIGHT_ARROW)||keyIsDown(68)) dx += 1;
+      if(keyIsDown(UP_ARROW)||keyIsDown(87)) dy -= 1;
+      if(keyIsDown(DOWN_ARROW)||keyIsDown(83)) dy += 1;
+    }
+
+    // joystick móvil (invertido)
+    if(esMovil && joystick.active){
+      let ox = joystick.offsetX / joystick.r;
+      let oy = joystick.offsetY / joystick.r;
+      dx += oy;   // invertido
+      dy += ox;
+    }
+
+    xPos += dx*vel;
+    yPos += dy*vel;
+
+    xPos = constrain(xPos, size/2, width-size/2);
+    yPos = constrain(yPos, size/2, height-size/2);
+
+    // triángulos
+    fill(255,0,0); noStroke();
+    for(let i=triangulos.length-1;i>=0;i--){
+      let t = triangulos[i];
+      t.angle += t.speed;
+      let tx = t.centerX + cos(t.angle)*t.radius;
+      let ty = t.centerY + sin(t.angle)*t.radius;
+
+      triangle(
+        tx, ty + t.size/2,
+        tx - t.size/2, ty - t.size/2,
+        tx + t.size/2, ty - t.size/2
+      );
+
+      if(dist(xPos,yPos,tx,ty) < size/2 + t.size/2){
+        for(let p=0;p<14;p++){
+          particulas.push({x:tx,y:ty,vx:random(-2,2),vy:random(-2,2),a:255});
+        }
+        triangulos.splice(i,1);
+        comidasHechas++;
+      }
+    }
+
+    // partículas
+    for(let i=particulas.length-1;i>=0;i--){
+      let p=particulas[i];
+      p.x+=p.vx; p.y+=p.vy; p.a-=6;
+      fill(255,0,0,p.a); ellipse(p.x,p.y,4);
+      if(p.a<=0) particulas.splice(i,1);
+    }
+
+    // bloques de 10
+    if(triangulos.length===0 && comidasHechas<totalComidas){
+      dificultad += 0.1;
+      iniciarBloque();
+    }
+
+    // cuadrado
+    rotAngle += 0.1;
+    push(); translate(xPos,yPos); rotate(rotAngle);
+    rectMode(CENTER); fill(0); rect(0,0,size,size);
+    pop();
+
+    // barras
+    fill(255,0,0); rect(20,20,(vida/100)*200*escalaMovil,18*escalaMovil);
+    fill(0,200,0); rect(20,45,(comidasHechas/totalComidas)*200*escalaMovil,18*escalaMovil);
+
+    if(esMovil) drawJoystick();
+
+    if(comidasHechas>=totalComidas) ganado=true;
+
+  } else {
+    background(255);
+    imageMode(CENTER);
+    let a = map(sin(frameCount*0.05),-1,1,100,255);
+    tint(150,150,150,a);
+    image(ganado ? gatitoWin : gatitoLose, width/2, height/2-40, gatitoSize, gatitoSize);
+  }
+}
+
+function drawJoystick(){
+  fill(60,120,220,120);
+  rectMode(CENTER);
+  rect(joystick.x,joystick.y,joystick.r*2,joystick.r*2,14);
+  fill(80,160,255,200);
+  ellipse(joystick.x+joystick.offsetX, joystick.y+joystick.offsetY, joystick.r);
+}
+
+function touchStarted(){
+  for(let t of touches){
+    if(dist(t.x,t.y,joystick.x,joystick.y)<joystick.r*1.5){
+      joystick.active=true;
+      joystick.touchX=t.x;
+      joystick.touchY=t.y;
+    }
+  }
+}
+
+function touchMoved(){
+  if(joystick.active){
+    joystick.offsetX = constrain(touches[0].x-joystick.x,-joystick.r,joystick.r);
+    joystick.offsetY = constrain(touches[0].y-joystick.y,-joystick.r,joystick.r);
+  }
+  return false;
+}
+
+function touchEnded(){
+  joystick.active=false;
+  joystick.offsetX=0;
+  joystick.offsetY=0;
+}
+
+function windowResized(){
+  resizeCanvas(windowWidth,windowHeight);
+  joystick.x = width/2;
+  joystick.y = height - 120*escalaMovil;
+}
+
+</script>
+</body>
+</html>
