@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Rei - Nivel 1</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+</head>
+<body>
+<script>
+
+let xPos, yPos, size = 30;
+let baseVel = 3, vel = baseVel, rotAngle = 0;
+let gotas = [], cantidadGotas = 35;
+let triangulos = [], numTriangulosBloque = 10; 
+let totalComidas = 50;
+let comidasHechas = 0; 
+let vida = 100;
+let gatito, gatitoX, gatitoY, gatitoSize;
+let ganado = false;
+let perdido = false;
+let dificultad = 1;
+
+let particulas = []; 
+let touchPrevX = null;
+let touchPrevY = null;
+
+function preload() {
+  gatito = loadImage('rei.jpg'); 
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  reiniciarBloque();
+  xPos = width / 2;
+  yPos = height / 2;
+  gatitoSize = 120; 
+  gatitoX = width/2; 
+  gatitoY = height/2 - 120;
+
+  // inicializar gotas verdes
+  gotas = [];
+  for (let i = 0; i < cantidadGotas; i++) {
+    gotas.push({
+      x: random(width),
+      y: random(-500,0),
+      r: random(10,20),
+      speed: random(1,2.5),
+      wave: random(0.5,2)
+    });
+  }
+}
+
+function reiniciarBloque() {
+  triangulos = [];
+  for (let i = 0; i < numTriangulosBloque; i++) {
+    triangulos.push({
+      x: random(100,width-100),
+      y: random(100,height-100),
+      size: random(20,35),
+      centerX: random(100,width-100),
+      centerY: random(100,height-100),
+      angle: random(TWO_PI),
+      radius: random(30,60),
+      speed: random(0.01,0.03) * dificultad
+    });
+  }
+}
+
+function reiniciarJuego() {
+  comidasHechas = 0;
+  vida = 100;
+  dificultad = 1;
+  ganado = false;
+  perdido = false;
+  reiniciarBloque();
+}
+
+function draw() {
+  background(255);
+
+  if(!ganado && !perdido){
+    let enLiquido = false;
+
+    // gotas verdes
+    noStroke(); fill(0,255,0);
+    for (let g of gotas) {
+      g.y += g.speed * dificultad;
+      g.x += sin(frameCount*0.02 + g.y)*g.wave;
+      ellipse(g.x,g.y,g.r*1.2,g.r*1.8);
+      if (g.y > height + 20){ g.y = random(-200,0); g.x = random(width); }
+      if (dist(xPos,yPos,g.x,g.y) < size/2 + g.r/2) enLiquido = true;
+    }
+
+    vel = enLiquido ? baseVel*0.5 : baseVel;
+    if(enLiquido){ vida -= 0.2; if(vida <= 0){ vida = 0; perdido = true; } }
+
+    // movimiento teclado
+    let dx = 0, dy = 0;
+    if(keyIsDown(LEFT_ARROW)||keyIsDown(65)) dx -= 1;
+    if(keyIsDown(RIGHT_ARROW)||keyIsDown(68)) dx += 1;
+    if(keyIsDown(UP_ARROW)||keyIsDown(87)) dy -= 1;
+    if(keyIsDown(DOWN_ARROW)||keyIsDown(83)) dy += 1;
+
+    xPos += dx * vel;
+    yPos += dy * vel;
+
+    // triángulos rojos invertidos
+    fill(255,0,0); noStroke();
+    for(let i=triangulos.length-1;i>=0;i--){
+      let t = triangulos[i]; 
+      t.angle += t.speed;
+      t.x = t.centerX + cos(t.angle) * t.radius; 
+      t.y = t.centerY + sin(t.angle) * t.radius;
+
+      triangle(
+        t.x, t.y + t.size/2,       
+        t.x - t.size/2, t.y - t.size/2,
+        t.x + t.size/2, t.y - t.size/2
+      );
+
+      if(dist(xPos,yPos,t.x,t.y) < size/2 + t.size/2){
+        // generar partículas
+        for(let p = 0; p < 15; p++){
+          particulas.push({
+            x: t.x,
+            y: t.y,
+            vx: random(-2,2),
+            vy: random(-2,2),
+            alpha: 255,
+            size: random(3,6)
+          });
+        }
+        triangulos.splice(i,1);
+        comidasHechas++; 
+      }
+    }
+
+    // actualizar partículas
+    for(let i=particulas.length-1; i>=0; i--){
+      let p = particulas[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 5;
+      fill(255,0,0,p.alpha);
+      noStroke();
+      ellipse(p.x,p.y,p.size);
+      if(p.alpha <= 0) particulas.splice(i,1);
+    }
+
+    // si bloque terminado y no se alcanzó total
+    if(triangulos.length === 0 && comidasHechas < totalComidas){
+      dificultad += 0.1; 
+      reiniciarBloque();
+    }
+
+    // cuadrado negro girando
+    rotAngle += 0.1;
+    push(); translate(xPos,yPos); rotate(rotAngle); rectMode(CENTER); fill(0); rect(0,0,size,size); pop();
+
+    // barra verde = vida
+    fill(0,200,0);
+    rect(20,20,vida*2,20);
+
+    // barra roja = comida
+    fill(255,0,0);
+    rect(20,50,(comidasHechas/totalComidas)*200,20);
+
+    if(comidasHechas >= totalComidas) ganado = true;
+
+  } else if(ganado){
+    background(255);
+    push();
+    imageMode(CENTER);
+    let alpha = map(sin(frameCount*0.05), -1, 1, 100, 255);
+    tint(150,150,150,alpha);
+    image(gatito, gatitoX, gatitoY, gatitoSize, gatitoSize);
+    pop();
+
+    textAlign(CENTER,CENTER);
+    textSize(48); fill(0,200,0);
+    text('勝った！', width/2, height/2 + 50);
+
+    textSize(32); fill(0);
+    text('Play', width/2, height/2 + 120);
+
+  } else if(perdido){
+    background(255);
+    textAlign(CENTER,CENTER);
+    textSize(48); fill(255,0,0);
+    text('負けた！', width/2, height/2);
+    textSize(32); fill(0);
+    text('Play', width/2, height/2 + 80);
+  }
+}
+
+// -------------------- GESTOS MOVIL --------------------
+function touchStarted() {
+  if(ganado || perdido){
+    reiniciarJuego();
+  }
+  if(touches.length > 0){
+    touchPrevX = touches[0].x;
+    touchPrevY = touches[0].y;
+  }
+}
+
+function touchMoved() {
+  if(touches.length > 0){
+    let dx = touches[0].x - touchPrevX;
+    let dy = touches[0].y - touchPrevY;
+
+    xPos += dx * 0.1;
+    yPos += dy * 0.1;
+
+    touchPrevX = touches[0].x;
+    touchPrevY = touches[0].y;
+  }
+  return false; // evitar scroll
+}
+
+function touchEnded() {
+  touchPrevX = null;
+  touchPrevY = null;
+}
+// ------------------------------------------------------
+
+function windowResized(){ resizeCanvas(windowWidth, windowHeight); }
+
+</script>
+</body>
+</html>
