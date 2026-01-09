@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Rei - Nivel 1</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+</head>
+<body>
+<script>
+
+let xPos, yPos;
+let size = 30;
+let baseVel = 3, vel = baseVel, rotAngle = 0;
+let gotas = [], cantidadGotas = 35;
+let triangulos = [], numTriangulosBloque = 10;
+let totalComidas = 50;
+let comidasHechas = 0;
+let vida = 100;
+let gatito, gatitoX, gatitoY, gatitoSize;
+let ganado = false;
+let perdido = false;
+let dificultad = 1;
+let particulas = [];
+
+// Joysticks
+let joyLeft = {x:0, y:0, posX:0, posY:0, radius:0, touchId:null};
+let joyRight = {x:0, y:0, posX:0, posY:0, radius:0, touchId:null};
+let escalaMovil = 1;
+
+function preload() {
+  gatito = loadImage('rei.jpg');
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+
+  if(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)){
+    escalaMovil = 1.5;
+  }
+
+  size *= escalaMovil;
+  gatitoSize = 120 * escalaMovil;
+  xPos = width/2;
+  yPos = height/2;
+  gatitoX = width/2;
+  gatitoY = height/2 - gatitoSize;
+
+  reiniciarBloque();
+
+  // gotas verdes
+  gotas = [];
+  for(let i=0;i<cantidadGotas;i++){
+    gotas.push({
+      x: random(width),
+      y: random(-500,0),
+      r: random(10,20)*escalaMovil,
+      speed: random(1,2.5),
+      wave: random(0.5,2)
+    });
+  }
+
+  // joysticks
+  joyLeft.radius = 50 * escalaMovil;
+  joyLeft.posX = width*0.25;
+  joyLeft.posY = height - 100*escalaMovil;
+
+  joyRight.radius = 50 * escalaMovil;
+  joyRight.posX = width*0.75;
+  joyRight.posY = height - 100*escalaMovil;
+}
+
+function reiniciarBloque(){
+  triangulos = [];
+  for(let i=0;i<numTriangulosBloque;i++){
+    triangulos.push({
+      x: random(100,width-100),
+      y: random(100,height-100),
+      size: random(20,35)*escalaMovil,
+      centerX: random(100,width-100),
+      centerY: random(100,height-100),
+      angle: random(TWO_PI),
+      radius: random(30,60)*escalaMovil,
+      speed: random(0.01,0.03)*dificultad
+    });
+  }
+}
+
+function reiniciarJuego(){
+  comidasHechas = 0;
+  vida = 100;
+  dificultad = 1;
+  ganado = false;
+  perdido = false;
+  reiniciarBloque();
+}
+
+function draw(){
+  background(255);
+
+  if(!ganado && !perdido){
+    let enLiquido = false;
+
+    // gotas verdes
+    noStroke(); fill(0,255,0);
+    for(let g of gotas){
+      g.y += g.speed * dificultad;
+      g.x += sin(frameCount*0.02 + g.y)*g.wave;
+      ellipse(g.x,g.y,g.r*1.2,g.r*1.8);
+      if(g.y>height+20){ g.y=random(-200,0); g.x=random(width);}
+      if(dist(xPos,yPos,g.x,g.y) < size/2 + g.r/2) enLiquido=true;
+    }
+
+    vel = enLiquido ? baseVel*0.5 : baseVel;
+    if(enLiquido){ vida -= 0.35; if(vida<=0){ vida=0; perdido=true; } }
+
+    // movimiento teclado
+    let dx = 0, dy = 0;
+    if(keyIsDown(LEFT_ARROW)||keyIsDown(65)) dx -= 1;
+    if(keyIsDown(RIGHT_ARROW)||keyIsDown(68)) dx += 1;
+    if(keyIsDown(UP_ARROW)||keyIsDown(87)) dy -= 1;
+    if(keyIsDown(DOWN_ARROW)||keyIsDown(83)) dy += 1;
+
+    // joystick
+    dx += joyLeft.x*baseVel + joyRight.x*baseVel;
+    dy += joyLeft.y*baseVel + joyRight.y*baseVel;
+
+    xPos += dx;
+    yPos += dy;
+
+    xPos = constrain(xPos,size/2,width-size/2);
+    yPos = constrain(yPos,size/2,height-size/2);
+
+    // triángulos rojos invertidos
+    fill(255,0,0); noStroke();
+    for(let i=triangulos.length-1;i>=0;i--){
+      let t = triangulos[i];
+      t.angle += t.speed;
+      t.x = t.centerX + cos(t.angle)*t.radius;
+      t.y = t.centerY + sin(t.angle)*t.radius;
+
+      triangle(
+        t.x, t.y + t.size/2,
+        t.x - t.size/2, t.y - t.size/2,
+        t.x + t.size/2, t.y - t.size/2
+      );
+
+      if(dist(xPos,yPos,t.x,t.y) < size/2 + t.size/2){
+        for(let p=0;p<15;p++){
+          particulas.push({
+            x:t.x, y:t.y,
+            vx:random(-2,2), vy:random(-2,2),
+            alpha:255, size:random(3,6)
+          });
+        }
+        triangulos.splice(i,1);
+        comidasHechas++;
+      }
+    }
+
+    // partículas
+    for(let i=particulas.length-1;i>=0;i--){
+      let p=particulas[i];
+      p.x+=p.vx;
+      p.y+=p.vy;
+      p.alpha-=5;
+      fill(255,0,0,p.alpha);
+      noStroke();
+      ellipse(p.x,p.y,p.size);
+      if(p.alpha<=0) particulas.splice(i,1);
+    }
+
+    if(triangulos.length===0 && comidasHechas<totalComidas){
+      dificultad += 0.1;
+      reiniciarBloque();
+    }
+
+    // cuadrado negro girando
+    rotAngle += 0.1;
+    push(); translate(xPos,yPos); rotate(rotAngle); rectMode(CENTER); fill(0); rect(0,0,size,size); pop();
+
+    // barras
+    fill(0,200,0); rect(20,20,vida*2*escalaMovil,20*escalaMovil);
+    fill(255,0,0); rect(20,50,(comidasHechas/totalComidas)*200*escalaMovil,20*escalaMovil);
+
+    // dibujar joysticks solo en móvil
+    if(escalaMovil>1){
+      fill(0,0,255,80); noStroke();
+      ellipse(joyLeft.posX, joyLeft.posY, joyLeft.radius*2, joyLeft.radius*2);
+      ellipse(joyRight.posX, joyRight.posY, joyRight.radius*2, joyRight.radius*2);
+      fill(0,0,255,150);
+      ellipse(joyLeft.posX + joyLeft.x*joyLeft.radius, joyLeft.posY + joyLeft.y*joyLeft.radius, joyLeft.radius, joyLeft.radius);
+      ellipse(joyRight.posX + joyRight.x*joyRight.radius, joyRight.posY + joyRight.y*joyRight.radius, joyRight.radius, joyRight.radius);
+    }
+
+    if(comidasHechas>=totalComidas) ganado=true;
+
+  } else if(ganado){
+    background(255);
+    push();
+    imageMode(CENTER);
+    let alpha = map(sin(frameCount*0.05),-1,1,100,255);
+    tint(150,150,150,alpha);
+    image(gatito, gatitoX, gatitoY, gatitoSize, gatitoSize);
+    pop();
+
+    textAlign(CENTER,CENTER);
+    textSize(48*escalaMovil); fill(0,200,0);
+    text('勝った！', width/2, height/2 + 50);
+    textSize(32*escalaMovil); fill(0);
+    text('Play', width/2, height/2 + 120);
+
+  } else if(perdido){
+    background(255);
+    textAlign(CENTER,CENTER);
+    textSize(48*escalaMovil); fill(255,0,0);
+    text('負けた！', width/2, height/2);
+    textSize(32*escalaMovil); fill(0);
+    text('Play', width/2, height/2 + 80);
+  }
+}
+
+// ------------------- TOUCH JOYSTICKS -------------------
+function touchStarted(){
+  for(let t of touches){
+    let dLeft = dist(t.x,t.y,joyLeft.posX,joyLeft.posY);
+    let dRight = dist(t.x,t.y,joyRight.posX,joyRight.posY);
+    if(dLeft<joyLeft.radius*2 && joyLeft.touchId===null) joyLeft.touchId=t.id;
+    if(dRight<joyRight.radius*2 && joyRight.touchId===null) joyRight.touchId=t.id;
+  }
+  if(ganado || perdido) reiniciarJuego();
+}
+
+function touchMoved(){
+  touches.forEach(t=>{
+    if(joyLeft.touchId===t.id){
+      let dx = t.x - joyLeft.posX;
+      let dy = t.y - joyLeft.posY;
+      let mag = sqrt(dx*dx + dy*dy);
+      if(mag>joyLeft.radius){ dx=dx/mag*joyLeft.radius; dy=dy/mag*joyLeft.radius; }
+      joyLeft.x = dx/joyLeft.radius;
+      joyLeft.y = dy/joyLeft.radius;
+    }
+    if(joyRight.touchId===t.id){
+      let dx = t.x - joyRight.posX;
+      let dy = t.y - joyRight.posY;
+      let mag = sqrt(dx*dx + dy*dy);
+      if(mag>joyRight.radius){ dx=dx/mag*joyRight.radius; dy=dy/mag*joyRight.radius; }
+      joyRight.x = dx/joyRight.radius;
+      joyRight.y = dy/joyRight.radius;
+    }
+  });
+  return false;
+}
+
+function touchEnded(){
+  for(let t of touches){
+    if(!touches.find(tp=>tp.id===joyLeft.touchId)) joyLeft.touchId=null;
+    if(!touches.find(tp=>tp.id===joyRight.touchId)) joyRight.touchId=null;
+  }
+  joyLeft.x=0; joyLeft.y=0;
+  joyRight.x=0; joyRight.y=0;
+}
+
+function windowResized(){ 
+  resizeCanvas(windowWidth, windowHeight); 
+  joyLeft.posY = height - 100 * escalaMovil;
+  joyRight.posY = height - 100 * escalaMovil;
+}
+
+</script>
+</body>
+</html>
