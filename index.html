@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Rei - Nivel 1 Final Playa</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; overflow: hidden; background: #fff; touch-action: none; }
+    canvas { image-rendering: pixelated; display: block; }
+  </style>
+</head>
+<body>
+<script>
+
+let xPos, yPos, size = 30;
+let baseVel = 4, rotAngle = 0;
+let gotas = [], triangulos = [];
+let totalComidas = 40, comidasHechas = 0, vida = 100;
+let gatitoWin, gatitoLose, ganado = false, perdido = false;
+
+// Tamaño reducido (similar al círculo del Enter al 80%)
+let btnS = 45; 
+let margen = 15;
+
+function preload() {
+  gatitoWin = loadImage('rei.jpg');
+  gatitoLose = loadImage('rei2.jpg');
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  noSmooth();
+  xPos = width/2;
+  yPos = height/2;
+  iniciarBloque();
+  for(let i=0; i<30; i++) gotas.push({x: random(width), y: random(-height, 0), r: 20, spd: random(1, 2)});
+}
+
+function iniciarBloque(){
+  triangulos = [];
+  for(let i=0; i<10; i++) {
+    // Los triángulos ahora solo aparecen arriba de la zona de controles (height - 100)
+    triangulos.push({
+      cx: random(50, width-50), 
+      cy: random(50, height-120), 
+      ang: random(TWO_PI), r: 50, sp: 0.02
+    });
+  }
+}
+
+function draw(){
+  background(255);
+
+  if(!ganado && !perdido){
+    let enL = false;
+    noStroke(); fill(0, 255, 0, 150);
+    for(let g of gotas){
+      g.y += g.spd;
+      ellipse(g.x, g.y, g.r, g.r*1.5);
+      if(g.y > height) g.y = -20;
+      if(dist(xPos, yPos, g.x, g.y) < size) enL = true;
+    }
+    
+    if(enL) vida -= 0.05; 
+    if(vida <= 0) { vida = 0; perdido = true; }
+
+    let dx = 0, dy = 0;
+    if(keyIsDown(LEFT_ARROW)) dx = -1;
+    if(keyIsDown(RIGHT_ARROW)) dx = 1;
+    if(keyIsDown(UP_ARROW)) dy = -1;
+    if(keyIsDown(DOWN_ARROW)) dy = 1;
+    
+    // Controles táctiles
+    if(touches.length > 0){
+      for(let t of touches){
+        if(t.x < btnS + 60 && t.y > height - 100) dx = -1;
+        if(t.x > width - btnS - 60 && t.y > height - 100) dx = 1;
+        if(t.y < height/2) dy = -1;
+        if(t.y > height/2 && t.y < height - 100) dy = 1;
+      }
+    }
+
+    xPos += dx * baseVel;
+    yPos += dy * baseVel;
+    xPos = constrain(xPos, size, width-size);
+    yPos = constrain(yPos, size, height-size);
+
+    fill(255, 0, 0);
+    for(let i=triangulos.length-1; i>=0; i--){
+      let t = triangulos[i];
+      let tx = t.cx + cos(t.ang += t.sp) * t.r;
+      let ty = t.cy + sin(t.ang) * t.r;
+      triangle(tx, ty+15, tx-15, ty-15, tx+15, ty-15);
+      if(dist(xPos, yPos, tx, ty) < size) { triangulos.splice(i, 1); comidasHechas++; }
+    }
+
+    if(triangulos.length == 0 && comidasHechas < 40) iniciarBloque();
+    if(comidasHechas >= 40) ganado = true;
+
+    push(); translate(xPos, yPos); rotate(rotAngle += 0.05);
+    fill(0); rectMode(CENTER); rect(0, 0, size, size); pop();
+
+    // UI Barras (Vida Roja, Comida Verde)
+    noStroke();
+    fill(0, 200, 0); rect(10, 10, vida * 1.5, 12); 
+    fill(255, 0, 0); rect(10, 28, comidasHechas * 3.75, 12); 
+
+    drawButtons();
+
+  } else {
+    background(255);
+    imageMode(CENTER);
+    image(ganado ? gatitoWin : gatitoLose, width/2, height/2, 250, 250);
+    if(mouseIsPressed || touches.length > 0) location.reload();
+  }
+}
+
+function drawButtons() {
+  push();
+  rectMode(CENTER);
+  stroke(0); strokeWeight(1);
+  
+  // Posición pegada abajo con leve margen
+  let yBtn = height - btnS/2 - margen;
+
+  // Izquierdo
+  fill(0, 0, 255); 
+  rect(btnS/2 + margen, yBtn, btnS, btnS, 8);
+  fill(255); ellipse(btnS/2 + margen, yBtn, btnS/2.5);
+  
+  // Derecho
+  fill(0, 0, 255);
+  rect(width - btnS/2 - margen, yBtn, btnS, btnS, 8);
+  fill(255); ellipse(width - btnS/2 - margen, yBtn, btnS/2.5);
+  pop();
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>
