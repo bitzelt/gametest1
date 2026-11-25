@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi primer three.js</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #fff; overflow: hidden; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// 1. Escena, cámara y renderer
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 1, 3);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+// 2. Luces
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const sol = new THREE.DirectionalLight(0xffffff, 2);
+sol.position.set(3, 5, 2);
+scene.add(sol);
+
+// 3. Controles del mouse (girar, zoom, mover)
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// 4. Cargar el modelo (model.glb tiene que estar en la misma carpeta que este HTML)
+new GLTFLoader().load(
+  'model.glb',
+  (gltf) => {
+    const modelo = gltf.scene;
+    // Centrarlo y ajustarlo a un tamaño razonable
+    const caja = new THREE.Box3().setFromObject(modelo);
+    const centro = caja.getCenter(new THREE.Vector3());
+    const tamaño = caja.getSize(new THREE.Vector3()).length();
+    modelo.position.sub(centro);
+    modelo.scale.setScalar(2 / tamaño);
+    scene.add(modelo);
+  },
+  undefined,
+  () => {
+    // Si no encuentra model.glb, muestra un cubo para que veas que todo funciona
+    const cubo = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 0x44aaff })
+    );
+    scene.add(cubo);
+  }
+);
+
+// 5. Loop de animación
+function animar() {
+  requestAnimationFrame(animar);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animar();
+
+// Ajustar al cambiar el tamaño de la ventana
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
